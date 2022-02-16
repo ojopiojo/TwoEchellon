@@ -194,6 +194,7 @@ def MultiEchelon(data):
     model.setParam('OutputFlag', 0)
     # Auxiliary sets
     # Some firms don't have vehicles:
+    firmswithout = []
     if len(F) > 1:
         # This is for banning vehicles from at least 20%.
         # If the number is too small, just one firm will not have vehicles          
@@ -245,6 +246,7 @@ def MultiEchelon(data):
         for p in P_f[f]:
             for i in DcupS:
                 xx[p,f,i] = model.addVar(vtype = GRB.INTEGER, name = 'xx[%s,%s,%s]' % (p,f,i))
+
     # Binary decision variables
     y, z, w, u = {}, {}, {}, {}
     for k in K:
@@ -258,6 +260,7 @@ def MultiEchelon(data):
             z[k,c] = model.addVar(vtype = GRB.BINARY, name = 'z[%s,%s]' % (k,c))
     for s in S:
         u[s] = model.addVar(vtype = GRB.BINARY, name = 'u[%s]' % s)
+
     # Auxiliary variable for objective function
     satcost = model.addVar(vtype = GRB.CONTINUOUS, name = 'satcost')
     vehcost = model.addVar(vtype = GRB.CONTINUOUS, name = 'vehcost')
@@ -270,7 +273,7 @@ def MultiEchelon(data):
     
     # Demand
     model.addConstrs(
-        m[p,c,k] >= DEM[c][p]*z[k,c] for p in P  for c in C for k in K
+        m[p,c,k] == DEM[c][p]*z[k,c] for p in P  for c in C for k in K
     )
     
     # Clients are served by one and only one vehicle
@@ -383,6 +386,13 @@ def MultiEchelon(data):
     )
     model.addConstrs(
         quicksum(w[j,i,k] for i in N) <= 1 for j in N for k in K
+    )
+    # Experimental. Vehicles need to pass through their depot and end empty
+    model.addConstrs(
+        quicksum(w[int(j), i, k] for i in N) >= y[k] for j in V_i.keys() for k in V_i[j]
+    )
+    model.addConstrs(
+        quicksum(quicksum(q[p, i, j, k] for p in P) for i in N) == 0 for j in V_i.keys() for k in V_i[j]
     )
 
     """
@@ -576,6 +586,7 @@ def ExecuteMultiEchelonFromData(datadir,file, plotdir = None, soldir = None):
     
     """
     data = ReadData(datadir, file)
+    print(data["V_i"])
     ti = time()
     q_final, w_final, u_final, y_final, m_final, Opt = ExecuteMultiEchelon(data)
 #     print('opt = ', Opt)
@@ -585,45 +596,56 @@ def ExecuteMultiEchelonFromData(datadir,file, plotdir = None, soldir = None):
         plotfile = os.path.join(plotdir, 'solution milp ' + file.replace('.xlsx',''))
         AuxSubPlot(data, w_final, figsize = (5,5), save = True, filename = plotfile)
     if soldir:
+        # Write all the parameters to one sheet
+        writer = pd.ExcelWriter(os.path.join(soldir, 'solution milp ' + file), engine='xlsxwriter')
+
         # Save solutions: q
         dfq = []
         for key, value in dict(q_final).items():
             if value > 0:
                 dfq.append([*key,value])
+
         dfq = pd.DataFrame(data = dfq, columns = ['p','i','j','k','q_final'])
-        dfq.to_csv(os.path.join(soldir, 'solution milp q-' + file.replace('xlsx','csv')), index = False)
+        dfq.to_excel(writer, sheet_name='q')
+
         # Save solutions: w
         dfw = []
         for key, value in dict(w_final).items():
             if value > 0:
                 dfw.append([*key,value])
         dfw = pd.DataFrame(data = dfw, columns = ['i','j','k','w_final'])
-        dfw.to_csv(os.path.join(soldir, 'solution milp w-' + file.replace('xlsx','csv')), index = False)
+        dfw.to_excel(writer, sheet_name='w')
+
         # Save solutions: u
         dfu = []
         for key, value in dict(u_final).items():
             if value > 0:
                 dfu.append([key,value])
         dfu = pd.DataFrame(data = dfu, columns = ['s','u_final'])
-        dfu.to_csv(os.path.join(soldir, 'solution milp u-' + file.replace('xlsx','csv')), index = False)
+        dfu.to_excel(writer, sheet_name='u')
+
+        # Save solutions: y
         dfy = []
         for key, value in dict(y_final).items():
             if value > 0:
                 dfy.append([key,value])
         dfy = pd.DataFrame(data = dfy, columns = ['k','y_final'])
-        dfy.to_csv(os.path.join(soldir, 'solution milp y-' + file.replace('xlsx','csv')), index = False)
+        dfy.to_excel(writer, sheet_name='y')
+
+        # Save solutions: m
         dfm = []
         for key, value in dict(m_final).items():
             if value > 0:
                 dfm.append([*key,value])
         dfm = pd.DataFrame(data = dfm, columns = ['p','i','k','m_final'])
-        dfm.to_csv(os.path.join(soldir, 'solution milp m-' + file.replace('xlsx','csv')), index = False)
-        text = """
-Objective value: %s
-CPU Time (in seconds): %s """ % (Opt, dt)
-        report = open(os.path.join(soldir,"report milp-" + file.replace('xlsx','txt')),"w")
-        report.write(text)
-        report.close()
+        dfm.to_excel(writer, sheet_name='m')
+
+        # Save solutions: OtherData
+        dfo = pd.DataFrame({"Value": [Opt], "Time": [dt]})
+        dfo.to_excel(writer, sheet_name='Optimization')
+
+        writer.save()
+
     return Opt, dt
 
 # Aux exe
@@ -646,7 +668,7 @@ if __name__ == "__main__":
     """EXECUTION"""
     datadir = os.path.join(os.path.pardir, 'data')
     soldir = os.path.join(os.path.pardir, 'solutions')
-    #plotdir = os.path.join(os.path.pardir,'plots-v2')
+    #plotdir = os.path.join(os.path.pardir,'plots')
     sumdir = os.path.join(os.path.pardir, 'summaries')
     plotdir = None
 
