@@ -161,7 +161,7 @@ def PlotNodes(data, figsize = (20,20)):
     
 # Main model
     
-    def MultiEchelon(data):
+def MultiEchelon(data):
     # Unpacking data
     XY = data['XY']
     F = data['F']
@@ -642,38 +642,39 @@ def ExecuteMultiEchelon(data):
     Opt = np.round(model.objVal, 3)
     return q_final, w_final, u_final, y_final, m_final, Opt
 
-"""EXECUTION"""
-datadir = os.path.join(os.path.pardir,'data-v2')
-soldir = os.path.join(os.path.pardir,'solutions-v2')
-#plotdir = os.path.join(os.path.pardir,'plots-v2')
-sumdir = os.path.join(os.path.pardir,'summaries-v2')
-plotdir = None
+if __name__ == "__main__":
+    """EXECUTION"""
+    datadir = os.path.join(os.path.pardir, 'data')
+    soldir = os.path.join(os.path.pardir, 'solutions')
+    #plotdir = os.path.join(os.path.pardir,'plots-v2')
+    sumdir = os.path.join(os.path.pardir, 'summaries')
+    plotdir = None
 
-# Execute for 1 instance
-# file = 'v8-city-n15-f2-d1-s4-c8-p1-v1.xlsx'
-file = 'v1-city-n137-f4-d8-s25-c100-p4-v4.xlsx'
-Opt, dt = ExecuteMultiEchelonFromData(datadir,file, plotdir, soldir)
+    # Execute for 1 instance
+    # file = 'v8-city-n15-f2-d1-s4-c8-p1-v1.xlsx'
+    file = 'v1-city-n15-f2-d1-s4-c8-p1-v1.xlsx'
+    Opt, dt = ExecuteMultiEchelonFromData(datadir, file, plotdir, soldir)
 
-# Execute for a set of instances
-# filetype = 'v%s-city-n15-f2-d1-s4-c8-p1-v1.xlsx'
-# times = []
-# opts = []
-# failed = []
-# n_instances = 1000
-# files_ = [filetype % (i+1) for i in range(n_instances)]
-# files = []
-# fails = []
-# for file in files_:
-#     try:
-#         Opt, dt = ExecuteMultiEchelonFromData(datadir,file, plotdir, soldir)
-#         opts.append(Opt)
-#         times.append(dt)
-#         files.append(file)
-#     except:
-#         print('Failed for %s' % file)
-#         fails.append(file)
+    # Execute for a set of instances
+    # filetype = 'v%s-city-n15-f2-d1-s4-c8-p1-v1.xlsx'
+    # times = []
+    # opts = []
+    # failed = []
+    # n_instances = 1000
+    # files_ = [filetype % (i+1) for i in range(n_instances)]
+    # files = []
+    # fails = []
+    # for file in files_:
+    #     try:
+    #         Opt, dt = ExecuteMultiEchelonFromData(datadir,file, plotdir, soldir)
+    #         opts.append(Opt)
+    #         times.append(dt)
+    #         files.append(file)
+    #     except:
+    #         print('Failed for %s' % file)
+    #         fails.append(file)
 
-# df_milp = pd.DataFrame(data = {'Instance' : files,
-#                                'MILP Obj' : opts,
-#                                'MILP time (sec)' : times})
-# df_milp.to_excel(os.path.join(sumdir, filetype.replace('v%s-', 'summary-milp-%sinstances-' % n_instances)), index = False)
+    # df_milp = pd.DataFrame(data = {'Instance' : files,
+    #                                'MILP Obj' : opts,
+    #                                'MILP time (sec)' : times})
+    # df_milp.to_excel(os.path.join(sumdir, filetype.replace('v%s-', 'summary-milp-%sinstances-' % n_instances)), index = False)

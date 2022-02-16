@@ -2508,40 +2508,41 @@ CPU Time (in seconds): %s """ % (Opt, dt)
     return Opt, dt
 
 
-"""EXECUTION"""
+if __name__ == "__main__":
+    """EXECUTION"""
 
-#datadir = os.path.join(os.path.pardir,'data')
-#soldir = os.path.join(os.path.pardir,'solutions')
-#plotdir = os.path.join(os.path.pardir,'plots')
-#sumdir = os.path.join(os.path.pardir,'summaries')
-plotdir = None
-#soldir = None
+    #datadir = os.path.join(os.path.pardir,'data')
+    #soldir = os.path.join(os.path.pardir,'solutions')
+    #plotdir = os.path.join(os.path.pardir,'plots')
+    #sumdir = os.path.join(os.path.pardir,'summaries')
+    plotdir = None
+    #soldir = None
 
-datadir = os.path.join(os.path.pardir,'data-v2')
-soldir = os.path.join(os.path.pardir,'solutions-v2')
-#plotdir = os.path.join(os.path.pardir,'plots-v2')
-sumdir = os.path.join(os.path.pardir,'summaries-v2')
+    datadir = os.path.join(os.path.pardir,'data')
+    soldir = os.path.join(os.path.pardir,'solutions')
+    #plotdir = os.path.join(os.path.pardir,'plots-v2')
+    sumdir = os.path.join(os.path.pardir,'summaries')
 
-# Execute for 1 instance
-#file = 'v8-city-n15-f2-d1-s4-c8-p1-v1.xlsx'
-#Opt, dt = ExecuteMultiEchelonFromData(datadir,file, plotdir, soldir)
+    # Execute for 1 instance
+    #file = 'v8-city-n15-f2-d1-s4-c8-p1-v1.xlsx'
+    #Opt, dt = ExecuteMultiEchelonFromData(datadir,file, plotdir, soldir)
 
-# Execute for a set of instances
-filetype = 'v%s-city-n15-f2-d1-s4-c8-p1-v1.xlsx'
-times = []
-opts = []
-n_instances = 1000
+    # Execute for a set of instances
+    filetype = 'v%s-city-n15-f2-d1-s4-c8-p1-v1.xlsx'
+    times = []
+    opts = []
+    n_instances = 1000
 
 
-files_ = [filetype % (i+1) for i in range(n_instances)]
-files = []
-for file in files_:
-    ##print(file)
-    Opt, dt = ExecuteMultiEchelonFromData(datadir,file, plotdir, soldir)
-    files.append(file)
-    opts.append(Opt)
-    times.append(dt)
-df_heur = pd.DataFrame(data = {'Instance' : files,
-                               'Math Heur Obj' : opts,
-                               'Math Heur time (sec)' : times})
-df_heur.to_excel(os.path.join(sumdir, filetype.replace('v%s-', 'summary-heur-v2-%sinstances-' % n_instances)), index = False)
+    files_ = [filetype % (i+1) for i in range(n_instances)]
+    files = []
+    for file in files_:
+        ##print(file)
+        Opt, dt = ExecuteMultiEchelonFromData(datadir,file, plotdir, soldir)
+        files.append(file)
+        opts.append(Opt)
+        times.append(dt)
+    df_heur = pd.DataFrame(data = {'Instance' : files,
+                                   'Math Heur Obj' : opts,
+                                   'Math Heur time (sec)' : times})
+    df_heur.to_excel(os.path.join(sumdir, filetype.replace('v%s-', 'summary-heur-v2-%sinstances-' % n_instances)), index = False)
