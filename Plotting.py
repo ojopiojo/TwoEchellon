@@ -11,6 +11,7 @@ from matplotlib.patheffects import withStroke
 from matplotlib.ticker import AutoMinorLocator, MultipleLocator
 import numpy as np
 import json
+from Formatting import *
 
 royal_blue = [0, 20/256, 82/256]
 
@@ -95,10 +96,10 @@ def plot_solution(data, sol):
     vehicle_routes, vehicle_tours_x, vehicle_tours_y = get_vehicle_routes(data, sol)
 
     #Then plot the solution
-    V = ["b", "g", "r", "c", "m", "k"]
+    #V = ["b", "g", "r", "c", "m", "k"]
     P = ["--", ":", "-.", "-"]
     for k in vehicle_tours_x.keys():
-        ax.plot(vehicle_tours_x[k], vehicle_tours_y[k], V[k], label=str(k))
+        ax.plot(vehicle_tours_x[k], vehicle_tours_y[k], label=str(k))
     plt.legend()
 
     return 0
@@ -157,7 +158,8 @@ def get_average_load(data, sol, travel_segments, load_use):
         for i in range(n_segments):
             average += load_use[k][i] * travel_segments[k][i]
             total_distance += travel_segments[k][i]
-        average /= total_distance
+        if total_distance > 0:
+            average /= total_distance
         average_load_table[k] = average
 
     return average_load_table
@@ -274,8 +276,14 @@ if __name__ == "__main__":
     # file = 'v8-city-n15-f2-d1-s4-c8-p1-v1.xlsx'
     file = 'solution milp v1-city-n15-f2-d1-s4-c8-p1-v1.xlsx'
     datafile = "v1-city-n15-f2-d1-s4-c8-p1-v1.xlsx"
-    sol = ReadSolution(soldir, file)
-    data = ReadData(datadir, datafile)
+
+    uchoadir = os.path.join(os.path.curdir, 'ArtificialPoints')
+    uchoa_file = "X-n31-k25"
+    uchoa_sol_file = "solution milp milp solution X-n31-k25.xlsx"
+    data = UchoaToDataNoSOl(uchoadir, uchoa_file + ".vrp")
+    uchoa_soldir = os.path.join(os.path.curdir, 'ArtificialPoints')
+
+    sol = ReadSolution(uchoa_soldir, uchoa_sol_file)
     plot_solution(data, sol)
 
     plt.show()

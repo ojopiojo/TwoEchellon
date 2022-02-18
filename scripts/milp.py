@@ -235,6 +235,9 @@ def MultiEchelon(data):
         KminVi[i] = [k for k in K if k not in V_i[i]]
     PfromFw = [item for sublist in [P_f[f] for f in firmswithout] for item in sublist]
     n = len(N)
+
+    print("Initial work:", perf_counter() - ti)
+
     # Integer decision variables
     q, m, x, xx = {}, {}, {}, {}
     for p in P:
@@ -242,6 +245,7 @@ def MultiEchelon(data):
             for j in N:
                 for k in K:
                     q[p,i,j,k] = model.addVar(vtype = GRB.INTEGER, name = 'q[%s,%s,%s,%s]' % (p,i,j,k))
+
     for p in P:
         for i in NminF:
             for k in K:
@@ -255,6 +259,8 @@ def MultiEchelon(data):
             for i in DcupS:
                 xx[p,f,i] = model.addVar(vtype = GRB.INTEGER, name = 'xx[%s,%s,%s]' % (p,f,i))
 
+
+    print("Integer variables:", perf_counter() - ti)
 
     # Binary decision variables
     y, z, w, u = {}, {}, {}, {}
@@ -270,6 +276,8 @@ def MultiEchelon(data):
     for s in S:
         u[s] = model.addVar(vtype = GRB.BINARY, name = 'u[%s]' % s)
 
+    print("Desition variables:", perf_counter() - ti)
+
     # Auxiliary variable for objective function
     satcost = model.addVar(vtype = GRB.CONTINUOUS, name = 'satcost')
     vehcost = model.addVar(vtype = GRB.CONTINUOUS, name = 'vehcost')
@@ -277,7 +285,9 @@ def MultiEchelon(data):
     freightcost = model.addVar(vtype = GRB.CONTINUOUS, name = 'freigthcost')
 
     ob = model.addVar(vtype = GRB.CONTINUOUS, name = 'ob')
-    
+
+    print("Constants:", perf_counter() - ti)
+
     """ MAIN CONSTRAINTS """
     
     # Demand
@@ -295,6 +305,8 @@ def MultiEchelon(data):
     model.addConstrs(
         quicksum(w[c,i,k] for i in N) == z[k,c] for k in K for c in C
     )
+
+    print("Main constraints:", perf_counter() - ti)
     
     # Flow conservation
     # Customers
@@ -377,6 +389,9 @@ def MultiEchelon(data):
     model.addConstrs(
         quicksum(quicksum(w[s,j,k] for j in N) for k in V_i[s]) <= len(V_i[s])*u[s] for s in S
     )
+
+    print("Firms:", perf_counter() - ti)
+
     """
     CONSTRAINTS FROM ASSUMPTIONS
     """
@@ -404,6 +419,8 @@ def MultiEchelon(data):
         quicksum(quicksum(q[p, i, j, k] for p in P) for i in N) == 0 for j in V_i.keys() for k in V_i[j]
     )
 
+    print("Constraints from assumptions:", perf_counter() - ti)
+
     """
     LOGICAL CONSTRAINTS
     """
@@ -419,7 +436,7 @@ def MultiEchelon(data):
     model.addConstrs(
         m[p,d,k] == 0 for p in P for d in D for k in V_i[d]
     )
-
+    print("Logical constraints:", perf_counter() - ti)
 
 
 
@@ -606,57 +623,62 @@ def ExecuteMultiEchelonFromData(datadir,file, plotdir = None, soldir = None):
         plotfile = os.path.join(plotdir, 'solution milp ' + file.replace('.xlsx',''))
         AuxSubPlot(data, w_final, figsize = (5,5), save = True, filename = plotfile)
     if soldir:
-        # Write all the parameters to one sheet
-        writer = pd.ExcelWriter(os.path.join(soldir, 'solution milp ' + file), engine='xlsxwriter')
 
-        # Save solutions: q
-        dfq = []
-        for key, value in dict(q_final).items():
-            if value > 0:
-                dfq.append([*key,value])
-
-        dfq = pd.DataFrame(data = dfq, columns = ['p','i','j','k','q_final'])
-        dfq.to_excel(writer, sheet_name='q')
-
-        # Save solutions: w
-        dfw = []
-        for key, value in dict(w_final).items():
-            if value > 0:
-                dfw.append([*key,value])
-        dfw = pd.DataFrame(data = dfw, columns = ['i','j','k','w_final'])
-        dfw.to_excel(writer, sheet_name='w')
-
-        # Save solutions: u
-        dfu = []
-        for key, value in dict(u_final).items():
-            if value > 0:
-                dfu.append([key,value])
-        dfu = pd.DataFrame(data = dfu, columns = ['s','u_final'])
-        dfu.to_excel(writer, sheet_name='u')
-
-        # Save solutions: y
-        dfy = []
-        for key, value in dict(y_final).items():
-            if value > 0:
-                dfy.append([key,value])
-        dfy = pd.DataFrame(data = dfy, columns = ['k','y_final'])
-        dfy.to_excel(writer, sheet_name='y')
-
-        # Save solutions: m
-        dfm = []
-        for key, value in dict(m_final).items():
-            if value > 0:
-                dfm.append([*key,value])
-        dfm = pd.DataFrame(data = dfm, columns = ['p','i','k','m_final'])
-        dfm.to_excel(writer, sheet_name='m')
-
-        # Save solutions: OtherData
-        dfo = pd.DataFrame({"Value": [Opt], "Time": [dt]})
-        dfo.to_excel(writer, sheet_name='Optimization')
-
-        writer.save()
+        save_solution(soldir, file, dt, q_final, w_final, u_final, y_final, m_final, Opt)
 
     return Opt, dt
+
+def save_solution(soldir, file, dt, q_final, w_final, u_final, y_final, m_final, Opt):
+
+    # Write all the parameters to one sheet
+    writer = pd.ExcelWriter(os.path.join(soldir, 'solution milp ' + file), engine='xlsxwriter')
+
+    # Save solutions: q
+    dfq = []
+    for key, value in dict(q_final).items():
+        if value > 0:
+            dfq.append([*key, value])
+
+    dfq = pd.DataFrame(data=dfq, columns=['p', 'i', 'j', 'k', 'q_final'])
+    dfq.to_excel(writer, sheet_name='q')
+
+    # Save solutions: w
+    dfw = []
+    for key, value in dict(w_final).items():
+        if value > 0:
+            dfw.append([*key, value])
+    dfw = pd.DataFrame(data=dfw, columns=['i', 'j', 'k', 'w_final'])
+    dfw.to_excel(writer, sheet_name='w')
+
+    # Save solutions: u
+    dfu = []
+    for key, value in dict(u_final).items():
+        if value > 0:
+            dfu.append([key, value])
+    dfu = pd.DataFrame(data=dfu, columns=['s', 'u_final'])
+    dfu.to_excel(writer, sheet_name='u')
+
+    # Save solutions: y
+    dfy = []
+    for key, value in dict(y_final).items():
+        if value > 0:
+            dfy.append([key, value])
+    dfy = pd.DataFrame(data=dfy, columns=['k', 'y_final'])
+    dfy.to_excel(writer, sheet_name='y')
+
+    # Save solutions: m
+    dfm = []
+    for key, value in dict(m_final).items():
+        if value > 0:
+            dfm.append([*key, value])
+    dfm = pd.DataFrame(data=dfm, columns=['p', 'i', 'k', 'm_final'])
+    dfm.to_excel(writer, sheet_name='m')
+
+    # Save solutions: OtherData
+    dfo = pd.DataFrame({"Value": [Opt], "Time": [dt]})
+    dfo.to_excel(writer, sheet_name='Optimization')
+
+    writer.save()
 
 # Aux exe
     
@@ -665,6 +687,9 @@ def ExecuteMultiEchelon(data):
     ti = perf_counter()
     print("Optimizing model...")
     model.relax() #uncomment for relax
+    model.setParam("TimeLimit", 3000)
+    model.setParam(GRB.Param.OutputFlag, 1)
+
     model.optimize()
 #     model.printAttr('X')
     q, w, u, y, m, ob = model.__data

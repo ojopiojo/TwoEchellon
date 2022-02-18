@@ -1,0 +1,3 @@
+
+Objective value: 358.9452
+CPU Time (in seconds): 0.2499830722808838 

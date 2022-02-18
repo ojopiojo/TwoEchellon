@@ -1,0 +1,3 @@
+
+Objective value: 402.7814
+CPU Time (in seconds): 0.15624237060546875 
