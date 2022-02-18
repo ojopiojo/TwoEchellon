@@ -15,11 +15,12 @@ import json
 royal_blue = [0, 20/256, 82/256]
 
 def ReadSolution(datadir, file):
-
+    '''
+    Read an .xslx solution file into a solution dictionary
+    '''
     #Read data
     variables = ["q", "w", "u", "y", "m"]
     indices = ["p", "i", "j", "k"]
-    print(os.path.join(datadir, file))
     xls = pd.ExcelFile(os.path.join(datadir, file))
     sol = {}
     for variable in variables:
@@ -49,26 +50,22 @@ def text(ax, x, y, text):
             style='italic', fontfamily='monospace',
             path_effects=[withStroke(linewidth=7, foreground=(1, 1, 1, 1))])
 
-
 def code(ax, x, y, text):
     ax.text(x, y, text, zorder=100,
             ha='center', va='top', weight='normal', color='0.0',
             fontfamily='Courier New', fontsize='medium',
             path_effects=[withStroke(linewidth=7, foreground=(1, 1, 1, 1))])
 
-
 def circle(ax, x, y, txt, cde, radius=0.05):
     just_circle(ax, x, y, radius=radius)
     text(ax, x, y-0.2, txt)
     code(ax, x, y-0.33, cde)
-
 
 def square(ax, x, y, txt, cde, radius=0.05):
     r = Rectangle((x, y), width=radius, height=radius, facecolor='none', edgecolor=royal_blue, linewidth=2.5)
     ax.add_artist(r)
     text(ax, x, y-0.2, txt)
     code(ax, x, y-0.33, cde)
-
 
 def polygon(ax, x, y, numVertices, txt, cde, radius=0.05):
     r = RegularPolygon((x, y), numVertices, facecolor='none', edgecolor=royal_blue, linewidth=2.5, radius = radius)
@@ -77,8 +74,11 @@ def polygon(ax, x, y, numVertices, txt, cde, radius=0.05):
     code(ax, x, y-0.33, cde)
 
 def plot_solution(data, sol):
-
-    "First plot the data"
+    '''
+    Plot a solution
+    Currently using color for vehicles, think to change that
+    '''
+    #First plot the data
     fig = plt.figure(figsize=(8, 8), facecolor='1')
     marg = 0.1
     ax = fig.add_axes([marg, marg, 1 - 1.8 * marg, 1 - 1.8 * marg], aspect=1, facecolor='1')
@@ -91,38 +91,126 @@ def plot_solution(data, sol):
     for type, marker, label in zip(types, markers, labels):
         ax.scatter(data["XY"][data[type]][:,0], data["XY"][data[type]][:,1], s = 30, marker = marker, label = label)
 
-    #Now create the routes
-    #p is color
-    #i,j is position
-    #v is vehicle type
+    #Create the routes
+    vehicle_routes, vehicle_tours_x, vehicle_tours_y = get_vehicle_routes(data, sol)
+
+    #Then plot the solution
     V = ["b", "g", "r", "c", "m", "k"]
     P = ["--", ":", "-.", "-"]
-    print(sol["q"])
-    vehicle_order, vehicle_tours_x, vehicle_tours_y = get_vehicle_routes(data, sol)
-    print(vehicle_order)
-    print(vehicle_tours_x)
-    print(vehicle_tours_y)
     for k in vehicle_tours_x.keys():
         ax.plot(vehicle_tours_x[k], vehicle_tours_y[k], V[k], label=str(k))
+    plt.legend()
 
-    ax.legend()
-    plt.show()
-    "Then plot the solution"
-    print(get_total_product(data, sol))
-    print(get_total_demand(data, sol))
     return 0
 
 def get_total_demand(data, sol):
-
+    '''
+    Get a table in the form
+    table[location][product] = demand of product p in location
+    '''
     table = {}
     for location in data["DEM"]:
         table[location] = {j: data["DEM"][location][j] for j in range(len(data["P"]))}
 
     return table
 
+def get_travel_distance(data, sol, vehicle_routes):
+
+    travel_distance_table = {}
+    for k, route in vehicle_routes.items():
+
+        travel_distance = 0
+        if len(route) > 1:
+            for s in range(1, len(route)):
+                i = route[s - 1]
+                j = route[s]
+                travel_distance += data["r"][i][j]
+
+        travel_distance_table[k] = travel_distance
+
+    return travel_distance_table
+
+def get_travel_segments(data, sol, vehicle_routes):
+
+    travel_segment_table = {}
+    for k, route in vehicle_routes.items():
+
+        travel_segment = []
+        if len(route) > 1:
+            for s in range(1, len(route)):
+                i = route[s - 1]
+                j = route[s]
+                travel_segment.append(data["r"][i][j])
+
+        travel_segment_table[k] = travel_segment
+
+    return travel_segment_table
+
+def get_average_load(data, sol, travel_segments, load_use):
+
+    average_load_table = {}
+    for k in travel_segments.keys():
+
+        average = 0
+        n_segments = len(travel_segments[k])
+        total_distance = 0
+        for i in range(n_segments):
+            average += load_use[k][i] * travel_segments[k][i]
+            total_distance += travel_segments[k][i]
+        average /= total_distance
+        average_load_table[k] = average
+
+    return average_load_table
+
+def plot_vehicle_load(data, sol, travel_segments, load_use, k, ax):
+
+    x = []
+    y = []
+    current_time = 0
+    current_load = 0
+    max_load = data["Theta"][k]
+    for i in range(len(travel_segments[k])):
+        current_load = load_use[k][i]
+        x.append(current_time)
+        y.append(current_load / max_load)
+        current_time += travel_segments[k][i]
+        x.append(current_time)
+        y.append(current_load / max_load)
+
+    ax.plot(x, y, label = str(k) + ": " + str(max_load))
+
+def plot_vehicle_loads(data, sol, travel_segments, load_use):
+
+    fig, ax = plt.subplots(len(data["K"]), squeeze= False, sharex = True)
+    for k in data["K"]:
+        plot_vehicle_load(data, sol, travel_segments, load_use, k, ax[k][0])
+    #ax.legend()
+    plt.show()
+
+def get_load_use(data, sol, vehicle_routes):
+
+    load_use_table = {}
+    for k, route in vehicle_routes.items():
+
+        load_use = []
+        if len(route) > 1:
+            for s in range(1, len(route)):
+                i = route[s - 1]
+                j = route[s]
+                current_load = 0
+                for p in data["P"]:
+                    if (p, i, j, k) in sol["q"]:
+                        current_load += sol["q"][p, i, j, k] * data["omega"][p]
+                load_use.append(current_load)
+        load_use_table[k] = load_use
+
+    return load_use_table
 
 def get_total_product(data, sol):
-
+    '''
+    Get a dictionary
+    table[location][product] = M[p,i,:]
+    '''
     locations = []
     types = ["F", "D", "S", "C"]
     for type in types:
@@ -135,8 +223,20 @@ def get_total_product(data, sol):
 
     return table
 
-def get_vehicle_routes(data, sol):
+def plot_travel_distance_pie(data, sol, travel_segments):
 
+    travel_distance = get_travel_distance(data, sol, travel_segments)
+    travel_distance_array = [distance for distance in travel_distance.values()]
+    labels = [str(k) for k in travel_distance.keys()]
+    plt.pie(travel_distance_array, labels=labels)
+    plt.show()
+
+def get_vehicle_routes(data, sol):
+    '''
+    data: data dictionary
+    sol: solution dictionaty
+    returns: vehicle_routes, vehicle_tours_x, vehicle_tours_y
+    '''
     vehicle_tours_x = {k: [] for k in data["K"]}
     vehicle_tours_y = {k: [] for k in data["K"]}
     vehicle_order = {k: {} for k in data["K"]}
@@ -145,17 +245,14 @@ def get_vehicle_routes(data, sol):
     for tup, w in sol["w"].items():
         i, j, k = tup
         vehicle_order[k][i] = j
-    print(vehicle_order)
 
     for loc in data["V_i"].keys():
         for k in data["V_i"][loc]:
-            print(k, loc)
             points_x = [data["XY"][loc, 0]]
             points_y = [data["XY"][loc, 1]]
             locations = [loc]
             curr = loc
             while curr in vehicle_order[k]:
-                print("Locations", curr)
                 new = vehicle_order[k][curr]
                 del vehicle_order[k][curr]
                 curr = new
@@ -181,3 +278,15 @@ if __name__ == "__main__":
     data = ReadData(datadir, datafile)
     plot_solution(data, sol)
 
+    plt.show()
+
+    vehicle_routes, vehicle_tours_x, vehicle_tours_y = get_vehicle_routes(data, sol)
+    travel_segments = get_travel_segments(data, sol, vehicle_routes)
+    load_use = get_load_use(data, sol, vehicle_routes)
+    average_load = get_average_load(data, sol, travel_segments, load_use)
+    print(travel_segments)
+    print(load_use)
+    print(average_load)
+    plot_vehicle_loads(data, sol, travel_segments, load_use)
+    plot_travel_distance_pie(data, sol, vehicle_routes)
+    help(plt.subplots)

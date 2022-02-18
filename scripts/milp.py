@@ -18,7 +18,7 @@ import matplotlib.pyplot as plt
 import os
 from gurobipy import *
 from matplotlib import cm
-from time import time
+from time import time, perf_counter
 
 # Auxiliary functions
 
@@ -34,17 +34,20 @@ def DistanceBetweenNodes(XY):
     return r
 
 def ReadData(datadir, file):
+    ti = perf_counter()
+    print("Reading data...")
     # Nodes
-    df = pd.read_excel(os.path.join(datadir, file), sheet_name = 'Nodes')
+    xls = pd.ExcelFile(os.path.join(datadir, file))
+    df = pd.read_excel(xls, sheet_name = 'Nodes')
     XY = df[['X','Y']].values
     F = df[df['Type'] == 'F'].index.tolist()
     D = df[df['Type'] == 'D'].index.tolist()
     S = df[df['Type'] == 'S'].index.tolist()
     C = df[df['Type'] == 'C'].index.tolist()
-    LEZ = dict(zip(df.index.tolist(),df['LEZ'].tolist()))
-    city = dict(zip(df.index.tolist(),df['City'].tolist()))
+    LEZ = dict(zip(df.index.tolist(), df['LEZ'].tolist()))
+    city = dict(zip(df.index.tolist(), df['City'].tolist()))
     # Products
-    df = pd.read_excel(os.path.join(datadir, file), sheet_name = 'Products')
+    df = pd.read_excel(xls, sheet_name = 'Products')
     P = df['Product'].tolist()
     nu = df['Volume'].tolist()
     omega = df['Weight'].tolist()
@@ -53,12 +56,12 @@ def ReadData(datadir, file):
     for f in F:
         P_f[f] = df[df['Firm'] == f]['Product'].tolist()
     # Demands
-    df = pd.read_excel(os.path.join(datadir, file), sheet_name = 'Demands') 
+    df = pd.read_excel(xls, sheet_name = 'Demands')
     DEM = {}
     for c in C:
         DEM[c] = df[df['Customer'] == c]['Demand'].tolist()
     # Depots cap.
-    df = pd.read_excel(os.path.join(datadir, file), sheet_name = 'Depots cap.')
+    df = pd.read_excel(xls, sheet_name = 'Depots cap.')
     Lambd = {}
     Omega = {}
     epsil = {}
@@ -68,7 +71,7 @@ def ReadData(datadir, file):
         Omega[d] = df['Omega'].iloc[i]
         epsil[d] = df['epsil'].iloc[i]
     # Vehicles
-    df = pd.read_excel(os.path.join(datadir, file), sheet_name = 'Vehicles')
+    df = pd.read_excel(xls, sheet_name = 'Vehicles')
     K = df['Vehicle'].tolist()
     V_i = {}
     Phi = {}
@@ -123,7 +126,7 @@ def ReadData(datadir, file):
             for s1 in S:
                 if s1 != s:
                     # Bikes aren't shared between satellites
-                    A[s1,k] = 0
+                    A[s1, k] = 0
             for n in F+D+C:
                 # Bikes only visit nodes from the same city
                 if vehictype[k] == 'bike' and city[s] != city[n]:
@@ -142,6 +145,8 @@ def ReadData(datadir, file):
                 if vehictype[k] != 'bike' and LEZ[n] > 0:
                     A[n,k] = 0
     data['A'] = A
+    tf = perf_counter()
+    print("Read in:", tf - ti)
     return data
 
 def PlotNodes(data, figsize = (20,20)):
@@ -162,6 +167,9 @@ def PlotNodes(data, figsize = (20,20)):
 # Main model
     
 def MultiEchelon(data):
+
+    ti = perf_counter()
+    print("Building model...")
     # Unpacking data
     XY = data['XY']
     F = data['F']
@@ -246,6 +254,7 @@ def MultiEchelon(data):
         for p in P_f[f]:
             for i in DcupS:
                 xx[p,f,i] = model.addVar(vtype = GRB.INTEGER, name = 'xx[%s,%s,%s]' % (p,f,i))
+
 
     # Binary decision variables
     y, z, w, u = {}, {}, {}, {}
@@ -414,6 +423,7 @@ def MultiEchelon(data):
 
 
 
+
     """
     OBJECTIVE FUNCTION
     """
@@ -442,6 +452,9 @@ def MultiEchelon(data):
     
     model.setObjective(ob, GRB.MINIMIZE)
     model.update()
+
+    tf = perf_counter()
+    print("Built model in:", tf - ti)
     return model
 
 
@@ -586,12 +599,9 @@ def ExecuteMultiEchelonFromData(datadir,file, plotdir = None, soldir = None):
     
     """
     data = ReadData(datadir, file)
-    print(data["V_i"])
-    ti = time()
+    ti = perf_counter()
     q_final, w_final, u_final, y_final, m_final, Opt = ExecuteMultiEchelon(data)
-#     print('opt = ', Opt)
-    tf = time()
-    dt = tf - ti
+    dt = perf_counter() - ti
     if plotdir:
         plotfile = os.path.join(plotdir, 'solution milp ' + file.replace('.xlsx',''))
         AuxSubPlot(data, w_final, figsize = (5,5), save = True, filename = plotfile)
@@ -652,6 +662,8 @@ def ExecuteMultiEchelonFromData(datadir,file, plotdir = None, soldir = None):
     
 def ExecuteMultiEchelon(data):
     model = MultiEchelon(data)
+    ti = perf_counter()
+    print("Optimizing model...")
     model.relax() #uncomment for relax
     model.optimize()
 #     model.printAttr('X')
@@ -662,6 +674,8 @@ def ExecuteMultiEchelon(data):
     y_final = model.getAttr('x', y)
     m_final = model.getAttr('x', m)
     Opt = np.round(model.objVal, 3)
+    tf = perf_counter()
+    print("Optimized model in:", tf - ti)
     return q_final, w_final, u_final, y_final, m_final, Opt
 
 if __name__ == "__main__":
