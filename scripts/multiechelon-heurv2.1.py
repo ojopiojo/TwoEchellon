@@ -1647,6 +1647,7 @@ def Steps1To3(data):
                     else:
                         load_cost_f2 = 0
                         del_cost = r[i,c]*(gamma_ki*sum([Weight_cf[f] for f in F]) + rho_ki)
+                    """HERE WE CAN ADD ADDITIONAL COSTS FOR ROUTING"""
                     sc = load_cost_f1 + load_cost_f2 + del_cost + delta[k]
                     ServCost.append([i,c,k, sc, VolClient[c], WeightClient[c]])
     # serving cost for satellite
@@ -1794,7 +1795,6 @@ def Steps1To3(data):
                             rho_kd = rho[k]
                             sc = r[f,d]*(gamma_kf*we + rho_kf) + r[d,s]*(gamma_kd*we + rho_kd)
                             ServCost.append([d, s, p, k, sc, v, w])
-#     #print('Len servcost for FminFw = %s' % len(ServCost))
     # Serving cost for products from firms without vehicles:
     for f in Fw:
         for s in openedS:
@@ -1935,7 +1935,6 @@ def ExecuteMultiEchelon(data, filename, preplots = False):
     Phi_ = solution['Phi_']
     Q0_ = solution['Q0_']
     DEMS_ = solution['DEMS_']
-#    q_final, w_final, v_final, DictRoutes, DictRoutesList, DictNodes, Theta_, Phi_, Q0_, DEMS_ = MultiEchelonRouting(XY, F, D, S, C, P, P_f, K, V_i, DEM, Lambd, Omega, Phi, Theta, nu, omega, rho, models)
     """RETRIEVE ORIGINAL OBJECTIVE FUNCTION VALUE"""
     # Aux
     m_final = {}
@@ -1964,35 +1963,10 @@ def ExecuteMultiEchelon(data, filename, preplots = False):
     VehicCost = sum([y_final[k]*delta[k] for k in K])
     ArcCost = sum([w_final[i,j,k]*r[i,j]*rho[k] for i in N for j in N for k in K])
     FreightCost = sum([gamma[k]*qe_final[i,j,k]*r[i,j] for i in N for j in N for k in K])
-    #print('Number of satellites open: %s at cost %s' % (sum([u_final[s] for s in S]), SatCost))
-    #print('Number of vehicles used: %s at cost %s' % (sum([y_final[k] for k in K]), VehicCost))
-    #print('Arc cost: %s' % ArcCost)
-    #print('Freight cost: %s' % FreightCost)
-#    for key, value in w_final.items():
-#        if value > 0:
-            #print(key,': ', value )
+
     Opt = SatCost + VehicCost + ArcCost + FreightCost
-    ##print('Optimal value for original O.F: %s' % Opt)
-#    AuxSubPlot(XY,F,D,S,C,V_i, w_final, figsize = (5,5), save = False, filename = 'test')
-    #print('################### PRE LOOP REPORT ###################')
-#    for d in D:
-        #print('Delivery company %s' % d)
-        #print('Total capacity (weight): %s Remaining capacity: %s' % (Omega[d],sum([q_final[d,j,k] for j in N for k in V_i[d]])))
-        #print('Total capacity (volume): %s Remaining capacity: %s' % (Lambd[d],sum([v_final[d,j,k] for j in N for k in V_i[d]])))
-#    for s in S:
-#        if u_final[s] > 0:
-            #print('Satellite %s' % s)
-            #print('Total capacity (weight): %s Remaining capacity: %s' % (Omega[s],sum([q_final[s,j,k] for j in N for k in V_i[s]])))
-            #print('Total capacity (volume): %s Remaining capacity: %s' % (Lambd[s],sum([v_final[s,j,k] for j in N for k in V_i[s]])))
-#    for k in K:
-#        if y_final[k] > 0:
-            #print('Vehicle %s' % k)
-            #print('Total capacity (weight): %s Remaining capacity: %s' % (Theta[k],Theta_[k]))
-            #print('Total capacity (volume): %s Remaining capacity: %s' % (Phi[k],Phi_[k]))
-#     """LOOP STEP"""
-#    Vf = [item for sublist in [V_i[f] for f in F] for item in sublist]
+
     depots = {}
-#    for i in F+D+S:
     for i in D+S:
         for k in V_i[i]:
             depots[k] = i
