@@ -12,6 +12,7 @@ from matplotlib.ticker import AutoMinorLocator, MultipleLocator
 import numpy as np
 import json
 from Formatting import *
+from scripts.utils import *
 
 royal_blue = [0, 20/256, 82/256]
 
@@ -24,7 +25,12 @@ def ReadSolution(datadir, file):
     indices = ["p", "i", "j", "k"]
     xls = pd.ExcelFile(os.path.join(datadir, file))
     sol = {}
-    for variable in variables:
+
+    for variable in xls.sheet_names:
+        #Ignore anything that isn't a variable
+        if variable not in variables:
+            continue
+
         var_pd = pd.read_excel(xls, sheet_name=variable)
 
         sol[variable] = {}

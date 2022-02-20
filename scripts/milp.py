@@ -18,7 +18,8 @@ import matplotlib.pyplot as plt
 import os
 from gurobipy import *
 from matplotlib import cm
-from time import time, perf_counter
+from time import perf_counter
+from utils import *
 
 # Auxiliary functions
 
@@ -474,6 +475,75 @@ def MultiEchelon(data):
     print("Built model in:", tf - ti)
     return model
 
+def ExecuteFromInitial(datadir, datafile, solfile, soldir):
+    '''
+    Execute MILP starting from solution described in "sol"
+    '''
+    sol = ReadSolution(soldir, solfile)
+    data = ReadData(datadir, datafile)
+    model = MultiEchelon(data)
+
+    # Unpacking data
+    F = data['F']
+    D = data['D']
+    S = data['S']
+    C = data['C']
+    P = data['P']
+    P_f = data['P_f']
+    K = data['K']
+    V_i = data['V_i']
+
+    model = Model()
+    model.setParam('OutputFlag', 0)
+    # Auxiliary sets
+    # Some firms don't have vehicles:
+    firmswithout = []
+    if len(F) > 1:
+        # This is for banning vehicles from at least 20%.
+        # If the number is too small, just one firm will not have vehicles
+        firmswithout = F[- max(int(len(F) * 0.2), 1):]
+    N = firmswithout + D + S + C
+    Vd = [item for sublist in [V_i[d] for d in D] for item in sublist]
+    Vs = [item for sublist in [V_i[s] for s in S] for item in sublist]
+    VDminVd = {}
+    for d in D:
+        VDminVd[d] = [k for k in Vd if k not in V_i[d]]
+    VSminVs = {}
+    for s in S:
+        VSminVs[s] = [k for k in Vs if k not in V_i[s]]
+    PminPf = {}
+    for f in F:
+        PminPf[f] = [p for p in P if p not in P_f[f]]
+    P_fw = [item for sublist in [P_f[f] for f in firmswithout] for item in sublist]
+    KminVi = {}
+    for i in D + S:
+        KminVi[i] = [k for k in K if k not in V_i[i]]
+
+    for p in P:
+        for i in N:
+            for j in N:
+                for k in K:
+                    name = 'q[%s,%s,%s,%s]' % (p, i, j, k)
+                    model.setAttr("Start", name, sol["q"][p,i,j,k])
+
+    # Binary decision variables
+    for k in K:
+        name = 'y[%s]' % k
+        model.setAttr("Start", name, sol["y"][k])
+
+    for i in N:
+        for j in N:
+            for k in K:
+                name = 'w[%s,%s,%s]' % (i, j, k)
+                model.setAttr("Start", name, sol["w"][i, j, k])
+    for s in S:
+
+        model.setAttr("Start", name, sol["u"][s])
+
+    ti = perf_counter()
+    q_final, w_final, u_final, y_final, m_final, Opt = ExecuteModel(data, model)
+    dt = perf_counter() - ti
+    save_solution(soldir, file, dt, q_final, w_final, u_final, y_final, m_final, Opt)
 
 # Plotting function
 
@@ -681,8 +751,8 @@ def save_solution(soldir, file, dt, q_final, w_final, u_final, y_final, m_final,
     writer.save()
 
 # Aux exe
-    
-def ExecuteMultiEchelon(data):
+
+def ExecuteModel(data, model):
     model = MultiEchelon(data)
     ti = perf_counter()
     print("Optimizing model...")
@@ -701,6 +771,11 @@ def ExecuteMultiEchelon(data):
     Opt = np.round(model.objVal, 3)
     tf = perf_counter()
     print("Optimized model in:", tf - ti)
+    return q_final, w_final, u_final, y_final, m_final, Opt
+    
+def ExecuteMultiEchelon(data):
+    model = MultiEchelon(data)
+    q_final, w_final, u_final, y_final, m_final, Opt = ExecuteModel(data, model)
     return q_final, w_final, u_final, y_final, m_final, Opt
 
 if __name__ == "__main__":

@@ -14,6 +14,7 @@ import os
 from gurobipy import *
 from matplotlib import cm
 from time import time
+from milp import save_solution
 #from shapely.geometry import Point, shape
 #from numpy.random import uniform
 #from collections import Counter
@@ -283,8 +284,6 @@ def CreateSetE(DEM, F, C, P_f):
         for c in l:
             E_c[c] = [e for e in l if e != c]
     return E_c
-
-
 
 def ConstructorForRouting(dictclass, d0, k, m_opt, x_opt, data):
     # Unpack data
@@ -2228,7 +2227,7 @@ def PlotAssignsVehCli(XY,F, D, S, C, V_i, model, figsize = (20,20)):
         ax.annotate(i, (XY[i,0], XY[i,1]))
     plt.legend()
     plt.show()
-    
+
 def AuxSubPlot(data, w_opt, figsize = (20,20), save = False, filename = 'test'):
     # Unpacking data
     XY = data['XY']
@@ -2426,6 +2425,45 @@ def RecoverOriginalqValues(data, DictRoutes):
 #    for p in P
     return q_subp
 
+def SaveSolHeuristic(data, file, dt, soldir, q_final, w_final, u_final, y_final, DictRoutes, Opt):
+
+    #Create Excell Writter
+    writer = pd.ExcelWriter(os.path.join(soldir, 'solution milp ' + file.replace(".csv", ".xlsx")), engine='xlsxwriter')
+
+    # Save solutions: q
+    dfq = []
+    for key, value in dict(q_final).items():
+        if value > 0:
+            #                #print(key, value)
+            dfq.append([*key, value])
+    dfq = pd.DataFrame(data=dfq, columns=['p', 'i', 'j', 'k', 'q_final'])
+    dfq.to_excel(writer, index=False, sheet_name = "q")
+    # Save solutions: w
+    dfw = []
+    for key, value in dict(w_final).items():
+        if value > 0:
+            dfw.append([*key, value])
+    dfw = pd.DataFrame(data=dfw, columns=['i', 'j', 'k', 'w_final'])
+    dfw.to_excel(writer, index=False, sheet_name="w")
+    # Save solutions: u
+    dfu = []
+    for key, value in dict(u_final).items():
+        if value > 0:
+            dfu.append([key, value])
+    dfu = pd.DataFrame(data=dfu, columns=['s', 'u_final'])
+    dfu.to_excel(writer, index=False, sheet_name="u")
+    dfy = []
+    for key, value in dict(y_final).items():
+        if value > 0:
+            dfy.append([key, value])
+    dfy = pd.DataFrame(data=dfy, columns=['k', 'y_final'])
+    /dfy.to_excel(writer, index=False, sheet_name="y")
+
+    dfo = pd.DataFrame({"Value": [Opt], "Time": [dt]})
+    dfo.to_excel(writer, sheet_name='Optimization')
+
+    writer.save()
+
 def ExecuteMultiEchelonFromData(datadir,file, plotdir = None, soldir = None):
     """
     This is for executing the math heuristic for solving the multi echelon bla bla
@@ -2437,6 +2475,7 @@ def ExecuteMultiEchelonFromData(datadir,file, plotdir = None, soldir = None):
     data = ReadData(datadir, file)
     ti = time()
     q_final, w_final, u_final, y_final, DictRoutes, Opt = ExecuteMultiEchelon(data, filename = file.replace('.xlsx','-pre'))
+
     # Get the real q_final
     q_final = RecoverOriginalqValues(data, DictRoutes)
     tf = time()
@@ -2445,40 +2484,8 @@ def ExecuteMultiEchelonFromData(datadir,file, plotdir = None, soldir = None):
         plotfile = os.path.join(plotdir, 'solution heur ' + file.replace('.xlsx',''))
         AuxSubPlot(data, w_final, figsize = (5,5), save = True, filename = plotfile)
     if soldir:
-        # Save solutions: q
-        dfq = []
-        for key, value in dict(q_final).items():
-            if value > 0:
-#                #print(key, value)
-                dfq.append([*key,value])
-        dfq = pd.DataFrame(data = dfq, columns = ['p','i','j','k','q_final'])
-        dfq.to_csv(os.path.join(soldir, 'solution heur q-' + file.replace('xlsx','csv')), index = False)
-        # Save solutions: w
-        dfw = []
-        for key, value in dict(w_final).items():
-            if value > 0:
-                dfw.append([*key,value])
-        dfw = pd.DataFrame(data = dfw, columns = ['i','j','k','w_final'])
-        dfw.to_csv(os.path.join(soldir, 'solution heur w-' + file.replace('xlsx','csv')), index = False)
-        # Save solutions: u
-        dfu = []
-        for key, value in dict(u_final).items():
-            if value > 0:
-                dfu.append([key,value])
-        dfu = pd.DataFrame(data = dfu, columns = ['s','u_final'])
-        dfu.to_csv(os.path.join(soldir, 'solution heur u-' + file.replace('xlsx','csv')), index = False)
-        dfy = []
-        for key, value in dict(y_final).items():
-            if value > 0:
-                dfy.append([key,value])
-        dfy = pd.DataFrame(data = dfy, columns = ['k','y_final'])
-        dfy.to_csv(os.path.join(soldir, 'solution heur y-' + file.replace('xlsx','csv')), index = False)
-        text = """
-Objective value: %s
-CPU Time (in seconds): %s """ % (Opt, dt)
-        report = open(os.path.join(soldir,"report heur-" + file.replace('xlsx','txt')),"w")
-        report.write(text)
-        report.close()
+        SaveSolHeuristic(data, file, dt, soldir, q_final, w_final, u_final, y_final, DictRoutes, Opt)
+
     return Opt, dt
 
 
