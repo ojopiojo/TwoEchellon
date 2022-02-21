@@ -19,7 +19,7 @@ import os
 from gurobipy import *
 from matplotlib import cm
 from time import perf_counter
-from utils import *
+from scripts.utils import *
 
 # Auxiliary functions
 
@@ -167,7 +167,12 @@ def PlotNodes(data, figsize = (20,20)):
     
 # Main model
     
-def MultiEchelon(data):
+def MultiEchelon(data, output_variables = False):
+    '''
+    Builds model from data dictionary
+    output_variables: boolean
+    If True it outputs the variables q, w, u, y alongside the model.
+    '''
 
     ti = perf_counter()
     print("Building model...")
@@ -473,15 +478,16 @@ def MultiEchelon(data):
 
     tf = perf_counter()
     print("Built model in:", tf - ti)
-    return model
+    if output_variables:
+        return model, q, w, u, y
+    else:
+        return model
 
-def ExecuteFromInitial(datadir, datafile, solfile, soldir):
+
+def ExecuteFromInitial(data, sol, time_limit=300):
     '''
     Execute MILP starting from solution described in "sol"
     '''
-    sol = ReadSolution(soldir, solfile)
-    data = ReadData(datadir, datafile)
-    model = MultiEchelon(data)
 
     # Unpacking data
     F = data['F']
@@ -493,8 +499,10 @@ def ExecuteFromInitial(datadir, datafile, solfile, soldir):
     K = data['K']
     V_i = data['V_i']
 
-    model = Model()
+    model, q, w, u, y = MultiEchelon(data, output_variables = True)
     model.setParam('OutputFlag', 0)
+    model.setParam('TimeLimit', time_limit)
+
     # Auxiliary sets
     # Some firms don't have vehicles:
     firmswithout = []
@@ -524,26 +532,35 @@ def ExecuteFromInitial(datadir, datafile, solfile, soldir):
             for j in N:
                 for k in K:
                     name = 'q[%s,%s,%s,%s]' % (p, i, j, k)
-                    model.setAttr("Start", name, sol["q"][p,i,j,k])
+                    if (p, i, j, k) in sol["q"]:
+                        model.setAttr("Start", q[p,i,j,k], sol["q"][p,i,j,k])
+                    else:
+                        model.setAttr("Start", q[p,i,j,k], 0)
 
     # Binary decision variables
     for k in K:
         name = 'y[%s]' % k
-        model.setAttr("Start", name, sol["y"][k])
+        model.setAttr("Start", y[k], sol["y"][(k,)])
 
     for i in N:
         for j in N:
             for k in K:
                 name = 'w[%s,%s,%s]' % (i, j, k)
-                model.setAttr("Start", name, sol["w"][i, j, k])
+                if (i, j, k) in sol["w"]:
+                    model.setAttr("Start", w[i,j,k], sol["w"][i, j, k])
+                else:
+                    model.setAttr("Start", w[i, j, k], 0)
+
     for s in S:
 
-        model.setAttr("Start", name, sol["u"][s])
+        model.setAttr("Start", u[s], sol["u"][s])
 
     ti = perf_counter()
-    q_final, w_final, u_final, y_final, m_final, Opt = ExecuteModel(data, model)
+    q_final, w_final, u_final, y_final, m_final, Opt = ExecuteModel(data, model, time_limit=time_limit)
     dt = perf_counter() - ti
-    save_solution(soldir, file, dt, q_final, w_final, u_final, y_final, m_final, Opt)
+
+    return q_final, w_final, u_final, y_final, m_final, Opt, dt
+    #save_solution(soldir, file, dt, q_final, w_final, u_final, y_final, m_final, Opt)
 
 # Plotting function
 
@@ -698,66 +715,15 @@ def ExecuteMultiEchelonFromData(datadir,file, plotdir = None, soldir = None):
 
     return Opt, dt
 
-def save_solution(soldir, file, dt, q_final, w_final, u_final, y_final, m_final, Opt):
 
-    # Write all the parameters to one sheet
-    writer = pd.ExcelWriter(os.path.join(soldir, 'solution milp ' + file), engine='xlsxwriter')
-
-    # Save solutions: q
-    dfq = []
-    for key, value in dict(q_final).items():
-        if value > 0:
-            dfq.append([*key, value])
-
-    dfq = pd.DataFrame(data=dfq, columns=['p', 'i', 'j', 'k', 'q_final'])
-    dfq.to_excel(writer, sheet_name='q')
-
-    # Save solutions: w
-    dfw = []
-    for key, value in dict(w_final).items():
-        if value > 0:
-            dfw.append([*key, value])
-    dfw = pd.DataFrame(data=dfw, columns=['i', 'j', 'k', 'w_final'])
-    dfw.to_excel(writer, sheet_name='w')
-
-    # Save solutions: u
-    dfu = []
-    for key, value in dict(u_final).items():
-        if value > 0:
-            dfu.append([key, value])
-    dfu = pd.DataFrame(data=dfu, columns=['s', 'u_final'])
-    dfu.to_excel(writer, sheet_name='u')
-
-    # Save solutions: y
-    dfy = []
-    for key, value in dict(y_final).items():
-        if value > 0:
-            dfy.append([key, value])
-    dfy = pd.DataFrame(data=dfy, columns=['k', 'y_final'])
-    dfy.to_excel(writer, sheet_name='y')
-
-    # Save solutions: m
-    dfm = []
-    for key, value in dict(m_final).items():
-        if value > 0:
-            dfm.append([*key, value])
-    dfm = pd.DataFrame(data=dfm, columns=['p', 'i', 'k', 'm_final'])
-    dfm.to_excel(writer, sheet_name='m')
-
-    # Save solutions: OtherData
-    dfo = pd.DataFrame({"Value": [Opt], "Time": [dt]})
-    dfo.to_excel(writer, sheet_name='Optimization')
-
-    writer.save()
 
 # Aux exe
 
-def ExecuteModel(data, model):
-    model = MultiEchelon(data)
+def ExecuteModel(data, model, time_limit = 300):
     ti = perf_counter()
     print("Optimizing model...")
     model.relax() #uncomment for relax
-    model.setParam("TimeLimit", 3000)
+    model.setParam("TimeLimit", time_limit)
     model.setParam(GRB.Param.OutputFlag, 1)
 
     model.optimize()

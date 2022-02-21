@@ -14,7 +14,7 @@ import os
 from gurobipy import *
 from matplotlib import cm
 from time import time
-from milp import save_solution
+from scripts.utils import save_solution
 #from shapely.geometry import Point, shape
 #from numpy.random import uniform
 #from collections import Counter
@@ -1879,7 +1879,7 @@ def Steps1To3(data):
     return m_opt, u_opt, x_opt, y_opt, z_opt, cdv, cdw
     
 
-def ExecuteMultiEchelon(data, filename, preplots = False):
+def ExecuteMultiEchelon(data, filename = None, preplots = False):
     # Unpacking data
     XY = data['XY']
     F = data['F']
@@ -2428,9 +2428,10 @@ def RecoverOriginalqValues(data, DictRoutes):
 def SaveSolHeuristic(data, file, dt, soldir, q_final, w_final, u_final, y_final, DictRoutes, Opt):
 
     #Create Excell Writter
-    writer = pd.ExcelWriter(os.path.join(soldir, 'solution milp ' + file.replace(".csv", ".xlsx")), engine='xlsxwriter')
+    writer = pd.ExcelWriter(os.path.join(soldir, file), engine='xlsxwriter')
 
     # Save solutions: q
+    q_final = RecoverOriginalqValues(data, DictRoutes)
     dfq = []
     for key, value in dict(q_final).items():
         if value > 0:
@@ -2457,7 +2458,7 @@ def SaveSolHeuristic(data, file, dt, soldir, q_final, w_final, u_final, y_final,
         if value > 0:
             dfy.append([key, value])
     dfy = pd.DataFrame(data=dfy, columns=['k', 'y_final'])
-    /dfy.to_excel(writer, index=False, sheet_name="y")
+    dfy.to_excel(writer, index=False, sheet_name="y")
 
     dfo = pd.DataFrame({"Value": [Opt], "Time": [dt]})
     dfo.to_excel(writer, sheet_name='Optimization')
@@ -2519,7 +2520,7 @@ if __name__ == "__main__":
     files = []
     for file in files_:
         ##print(file)
-        Opt, dt = ExecuteMultiEchelonFromData(datadir,file, plotdir, soldir)
+        Opt, dt = ExecuteMultiEchelonFromData(datadir, file, plotdir, soldir)
         files.append(file)
         opts.append(Opt)
         times.append(dt)
